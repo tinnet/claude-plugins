@@ -46,8 +46,7 @@ The baseline applies to every stack. A stack file adds to it; where it deviates,
   | `run *args`  | run the app from source                                               |
   | `fmt`        | format code **and** `just --fmt`                                      |
   | `fmt-check`  | fail if anything is unformatted (code + `just --fmt --check`)         |
-  | `secrets`    | betterleaks over the tree and the git history                         |
-  | `ci`         | exactly what CI runs (`secrets fmt-check test`, plus stack lint)      |
+  | `ci`         | exactly what CI runs (`fmt-check test`, plus stack lint)              |
   | `changelog`  | preview the next release notes                                        |
   | `release`    | see Releases                                                          |
 
@@ -66,10 +65,15 @@ The baseline applies to every stack. A stack file adds to it; where it deviates,
   among those being pushed. It must be a script, not `run`: lefthook skips `run` jobs in
   pre-push when `git diff HEAD @{push}` is empty.
 
-### Secret scanning: betterleaks
+### Secret scanning: before anything leaves the machine
 
-Pre-commit on staged changes, `just secrets` (tree + history) in CI. If build output trips
-rules, add a `.betterleaks.toml` that extends the defaults and allowlists the output dir.
+- betterleaks in the pre-commit hook, on staged changes. That's the required layer; no CI
+  scan job (by the time CI runs, a pushed secret is already out).
+- Plus whatever protection the git host offers for free/on the current plan, turned on and
+  checked. On GitHub: secret scanning and push protection (`gh api repos/<owner>/<repo>
+  -q .security_and_analysis`); on by default for public repos, paid for private ones.
+- If build output trips rules, add a `.betterleaks.toml` that extends the defaults and
+  allowlists the output dir.
 
 ### Commits
 
@@ -95,8 +99,7 @@ rules, add a `.betterleaks.toml` that extends the defaults and allowlists the ou
 On push to `main` and on PRs; `permissions: contents: read`; `persist-credentials: false` on
 every checkout:
 
-- `test`: ubuntu, `jdx/mise-action`, `fetch-depth: 0` (the secret scan reads history), runs
-  `just ci`.
+- `test`: ubuntu, `jdx/mise-action`, runs `just ci`.
 - build matrix for distributed binaries (ubuntu, macos, windows; only the platforms the
   project supports): build the release artifact and smoke-test it.
 - `actions-lock`: every `uses:` is pinned in `.github/workflows/actions.lock` via

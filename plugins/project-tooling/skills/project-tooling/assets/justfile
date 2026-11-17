@@ -30,13 +30,8 @@ fmt-check:
     <STACK FORMAT CHECK COMMAND>
     {{ just_executable() }} --fmt --check
 
-# Scan the working tree and the git history for secrets
-secrets:
-    betterleaks dir . --no-banner --redact -v
-    betterleaks git . --no-banner --redact -v
-
 # What CI runs
-ci: secrets fmt-check test
+ci: fmt-check test
 
 # Show what the next release's notes would say
 changelog:
