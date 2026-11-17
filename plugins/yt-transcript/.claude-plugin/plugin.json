@@ -1,0 +1,9 @@
+{
+  "name": "yt-transcript",
+  "version": "1.0.0",
+  "description": "Downloads clean plain-text transcripts from YouTube videos using yt-dlp via uvx.",
+  "author": { "name": "tinnet" },
+  "repository": "https://github.com/tinnet/claude-plugins",
+  "license": "MIT",
+  "keywords": ["youtube", "transcript", "yt-dlp"]
+}

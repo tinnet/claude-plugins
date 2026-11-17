@@ -1,0 +1,22 @@
+{
+  "name": "tinnet",
+  "description": "tinnet's Claude Code plugins: skills and tools",
+  "owner": { "name": "tinnet" },
+  "plugins": [
+    {
+      "name": "project-tooling",
+      "source": "./plugins/project-tooling",
+      "description": "My tooling preferences and must-haves for new repos (mise, just, lefthook, betterleaks, CalVer), with Rust and Java stack guides"
+    },
+    {
+      "name": "yt-transcript",
+      "source": "./plugins/yt-transcript",
+      "description": "Clean text transcripts from YouTube videos via yt-dlp"
+    },
+    {
+      "name": "ccline",
+      "source": { "source": "git-subdir", "url": "https://github.com/tinnet/ccline.git", "path": "plugin" },
+      "description": "A fast Rust status line for Claude Code"
+    }
+  ]
+}
