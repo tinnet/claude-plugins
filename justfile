@@ -17,7 +17,11 @@ secrets:
 # Validate the marketplace and every plugin (needs the claude CLI)
 validate:
     claude plugin validate .
-    for p in plugins/*/; do claude plugin validate "$p"; done
+    for p in plugins/*/; do claude plugin validate "$p" || exit 1; done
+
+# Fail if this repo's hook scripts differ from the ones project-tooling ships
+check-copies:
+    diff -r .lefthook plugins/project-tooling/skills/project-tooling/assets/lefthook
 
 # Format this justfile
 fmt:
@@ -28,4 +32,4 @@ fmt-check:
     {{ just_executable() }} --fmt --check
 
 # Run before pushing
-ci: secrets fmt-check validate
+ci: secrets fmt-check check-copies validate
