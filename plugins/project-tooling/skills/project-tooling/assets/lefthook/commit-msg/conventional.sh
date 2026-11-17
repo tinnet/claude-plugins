@@ -3,7 +3,8 @@
 #   <type>[(scope)][!]: <description>
 # Merges, reverts and fixup!/squash!/amend! commits (autosquashed away) are let through.
 
-subject=$(grep -v '^#' "$1" | head -n 1)
+# Skip comment and blank lines, as git's own cleanup does before taking the subject.
+subject=$(grep -v -e '^#' -e '^[[:space:]]*$' "$1" | head -n 1)
 types='feat|fix|perf|refactor|test|docs|build|ci|chore|style|revert'
 
 printf '%s\n' "$subject" | grep -Eq "^(($types)(\([a-z0-9-]+\))?!?: [^ ].*|Merge .*|Revert \".*|(fixup|squash|amend)! .*)$" && exit 0

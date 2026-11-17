@@ -40,6 +40,8 @@ sort_commits = "oldest"
 # runs. As chore commits they are skipped below; the commits they merge are listed on their own.
 commit_preprocessors = [
   { pattern = "^Merge (pull request|branch) .*", replace = "chore: merge" },
+  # `git revert` writes `Revert "<subject>"`, which isn't conventional and would be dropped.
+  { pattern = '^Revert "(.*)"', replace = "revert: $1" },
 ]
 # The <!-- n --> prefixes order the sections; striptags drops them in the output.
 commit_parsers = [
@@ -47,6 +49,8 @@ commit_parsers = [
   { message = "^fix", group = "<!-- 1 -->Fixes" },
   { message = "^perf", group = "<!-- 2 -->Performance" },
   { message = "^docs", group = "<!-- 3 -->Documentation" },
+  # A revert takes back something users may have seen in an earlier release.
+  { message = "^revert", group = "<!-- 4 -->Reverts" },
   # Internal: refactoring, tests, build, CI and tooling don't change what users get.
   { message = "^(refactor|test|build|ci|chore|style)", skip = true },
 ]
