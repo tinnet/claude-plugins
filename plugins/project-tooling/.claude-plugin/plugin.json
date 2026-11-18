@@ -1,6 +1,6 @@
 {
   "name": "project-tooling",
-  "version": "2026.11.17.3",
+  "version": "2026.11.17.4",
   "description": "My tooling preferences and must-haves for new repos: mise for tools, just for tasks, lefthook hooks, betterleaks, Conventional Commits, CalVer releases with git-cliff, pinned GitHub Actions. Stack guides for Rust CLIs/daemons, Java native CLIs, small Rust web services.",
   "author": { "name": "tinnet" },
   "repository": "https://github.com/tinnet/claude-plugins",

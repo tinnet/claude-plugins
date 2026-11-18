@@ -26,7 +26,7 @@ something tiny; split when there's logic worth testing without I/O.
 | Arg parsing    | `clap` derive; subcommands enum; global flags for config path; hidden global flags for roots that only tests override |
 | Errors         | `anyhow` in the binary                                                 |
 | Config         | TOML via `serde` + `toml`; an `examples/<name>.toml` that tests use     |
-| Version        | `shadow-rs` in the binary's `build.rs`, `#[command(version = build::CLAP_LONG_VERSION)]`; make the short version the tag's version (`build::TAG` without `v`, `dev` when empty) |
+| Version        | `shadow-rs` in the binary's `build.rs`, `#[command(version = build::CLAP_LONG_VERSION)]`; make the short version the tag's version (`build::TAG` without `v`, `dev` when empty). Runtime dep with `default-features = false` (no git2/libgit2, keeps static builds simple), build-dep with `features = ["build"]` |
 | Tests          | unit tests next to the code; black-box `tests/cli.rs` with `assert_cmd` + `predicates` + `tempfile`, running the binary against a fake tree in a temp dir; `proptest` for property tests |
 | Parser sanity  | unit test `Cli::command().debug_assert()`                              |
 | Unix APIs      | `rustix` and `signal-hook` over raw `libc`                              |
@@ -56,6 +56,9 @@ Don't use cargo-dist: it parses tags as SemVer and requires them to match `Cargo
 ## Gotchas
 
 - shadow-rs needs the tags in CI: `fetch-depth: 0`.
+- Feature names move between a crate's majors; check them for the version you pin
+  (`curl -s https://crates.io/api/v1/crates/<crate>/<version> | jq .version.features`)
+  rather than from memory. Prefer `default-features = false` plus the features you use.
 - betterleaks can flag build-script logs under `target/`: allowlist `(^|/)target/` in
   `.betterleaks.toml`.
 - Windows binaries are `<name>.exe`; package them with `Compress-Archive`.

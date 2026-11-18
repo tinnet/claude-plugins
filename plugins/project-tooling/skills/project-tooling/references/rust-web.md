@@ -21,17 +21,21 @@ asks for them or the app clearly needs them (ask when unsure):
 | Templates      | `askama` + `askama_web` (axum feature): compile-time checked, compiled into the binary |
 | Static assets  | `static/` embedded with `rust-embed`; served under a versioned path (e.g. `/static/<version>/…`) with long `Cache-Control` |
 | htmx           | a pinned `htmx.min.js` vendored into `static/`; note its version and source URL in a comment or `static/README` |
-| SQLite         | `sqlx` with the `sqlite` feature (bundles libsqlite3) and `runtime-tokio`; WAL mode, `foreign_keys = on`, `busy_timeout` set on the pool's connect options |
+| SQLite         | `sqlx` with `default-features = false` and `runtime-tokio`, `sqlite` (bundles libsqlite3), `migrate`, `macros`; WAL mode, `foreign_keys = on`, `busy_timeout` set on the pool's connect options |
 | Queries        | start with `query_as()` (checked at runtime); adopt the `query!` macros only with `sqlx-cli` in mise and a committed `.sqlx/` (`cargo sqlx prepare --check` in `ci`) |
 | Migrations     | `migrations/*.sql`, embedded with `sqlx::migrate!()`, run at startup   |
 | TLS            | `rustls` everywhere, never OpenSSL (keeps the musl build static)       |
-| Config         | env vars only, via clap's `env` feature (`#[arg(long, env = "<NAME>_DATABASE_URL")]`), so they also work as flags locally; replaces the TOML config of `rust-cli.md` |
+| HTTP client    | `reqwest` with `default-features = false` and `rustls`, `json` (plus `form` if needed) |
+| Config         | env vars via clap's `env` feature (`#[arg(long, env = "<NAME>_DATABASE_URL")]`), so they also work as flags; replaces the TOML config of `rust-cli.md`. Locally, `dotenvy::dotenv()` loads the gitignored `.env` before clap parses (a missing file is fine); containers use real env vars |
 | Logging        | `tracing` + `tracing-subscriber` (`env-filter`, optional JSON via an env var) |
 | Endpoints      | `/healthz` runs `SELECT 1` and returns 200/503; `/version` returns the shadow-rs version |
 | Shutdown       | `axum::serve(...).with_graceful_shutdown(...)` on SIGINT and SIGTERM   |
 | Errors         | `anyhow` inside; one `AppError` implementing `IntoResponse` so handlers use `?` |
 | Allocator      | `mimalloc` as the global allocator (musl's malloc is slow under load)  |
+| Background work| one tokio task looping "process due items, then wait on a `tokio::sync::Notify` or a tick"; handlers `notify_one()` after enqueuing; whether an item is due is a pure function in core, unit-tested |
+| Upstream data  | store the raw upstream JSON per endpoint and parse on read: new fields need no refetch, and a failed fetch keeps the last good data |
 | Tests          | black-box `tests/http.rs`: start the app in-process on `127.0.0.1:0` with a `tempfile` SQLite DB, send real requests with `reqwest` (rustls) |
+| Fake upstream  | an in-process axum server on `127.0.0.1:0` serving fixture JSON; the client's base URLs are hidden clap args/env vars (`hide = true`) that only tests set; count requests with an `AtomicUsize` to assert (no) refetches |
 | Backup         | by default the host's job (snapshots of the data volume); see the Litestream option |
 
 Release profile in the workspace `Cargo.toml`:
@@ -42,6 +46,18 @@ lto = true
 codegen-units = 1
 strip = true
 ```
+
+## Pages and htmx
+
+- Every action is a plain form POST answered with a 303 redirect, so it works without JS. The
+  same form carries `hx-post`/`hx-target`; the handler checks the `HX-Request` header and
+  returns just the re-rendered fragment.
+- The fragment is an `{% include %}`d partial template, shared by the full page and the htmx
+  response.
+- htmx swaps only 2xx responses by default: validation errors go back as a 200 fragment
+  (keeping the typed input) to htmx, and as a 422 full page otherwise.
+- Poll (`hx-trigger="every 3s"`) only while background work is pending; the rendered fragment
+  drops the trigger when it's done.
 
 ## justfile additions
 
@@ -59,14 +75,29 @@ Deviates from `rust-cli.md`:
 - Linux only: `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, fully static.
   No macOS or Windows release builds; developing on macOS with `cargo run` still works. Tests
   run on ubuntu.
+- Build natively, no cross/zigbuild in CI: `ubuntu-24.04` (x86_64) and `ubuntu-24.04-arm`
+  (aarch64), `musl-tools` apt-installed, the musl targets listed in mise
+  (`rust = { version = …, profile = "default", targets = "x86_64-unknown-linux-musl,aarch64-unknown-linux-musl" }`).
+- CI builds the same binaries on PRs and smoke-tests them: `ldd` says "not a dynamic
+  executable", then start `serve` with a temp DB and poll the `healthcheck` subcommand.
 - The binaries go on the GitHub release as usual (`<name>-linux-<arch>` archives).
 - A multi-arch container image (`linux/amd64`, `linux/arm64`) is pushed to GHCR, tagged with
-  the CalVer version and `latest`.
+  the CalVer version and `latest`. The image job downloads the per-arch binaries into
+  `dist/linux-<amd64|arm64>/` and builds with buildx, no QEMU (the Dockerfile only copies).
 
 `Dockerfile` copies the prebuilt binaries; nothing compiles inside Docker:
 
-- Base image `gcr.io/distroless/static`, pinned by digest; runs as the nonroot user.
-- `COPY` the binary for `$TARGETARCH`; `ENTRYPOINT ["/<name>"]`.
+- Base image `gcr.io/distroless/static:nonroot`, pinned by digest; `USER nonroot`. Getting
+  the digest without crane/skopeo:
+
+  ```sh
+  TOKEN=$(curl -s "https://gcr.io/v2/token?scope=repository:distroless/static:pull" | jq -r .token)
+  curl -sI -H "Authorization: Bearer $TOKEN" \
+    -H "Accept: application/vnd.oci.image.index.v1+json" \
+    https://gcr.io/v2/distroless/static/manifests/nonroot | grep -i docker-content-digest
+  ```
+
+- `ARG TARGETARCH`, `COPY` `dist/linux-${TARGETARCH}/<name>`; `ENTRYPOINT ["/<name>"]`.
 - `HEALTHCHECK` can't use curl in distroless: give the binary a `healthcheck` subcommand that
   requests `/healthz` and exits 0/1.
 - Database on a volume (`/data`).
@@ -107,6 +138,11 @@ just for backups; the app itself needs no S3 client for this).
   the release build once before shipping.
 - askama templates live in `templates/` next to the crate's `Cargo.toml`; changing a template
   triggers a rebuild, not a reload.
-- Building musl from macOS needs a cross toolchain; build release binaries in CI (or with
-  `cargo zigbuild`) instead of locally.
+- askama: inside Rust expressions in a template (e.g. `format!(…)` arguments) bare names are
+  not the template struct's fields; a same-named fn in the module gets picked, or "cannot find
+  value". Expose a method instead (`{% let base = roster.base() %}`).
+- askama escapes `<`/`>` as `&#60;`/`&#62;`; HTTP tests asserting escaped text expect the
+  numeric entities.
+- Building musl from macOS needs a cross toolchain: release binaries come from CI; the local
+  `docker` recipe uses `cargo zigbuild`.
 - `object_store`'s `LocalFileSystem` needs its root directory to exist; create it at startup.
