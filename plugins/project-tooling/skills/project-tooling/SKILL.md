@@ -65,7 +65,7 @@ The baseline applies to every stack. A stack file adds to it; where it deviates,
   among those being pushed. It must be a script, not `run`: lefthook skips `run` jobs in
   pre-push when `git diff HEAD @{push}` is empty.
 
-### Secret scanning: before anything leaves the machine
+### Secrets and personal data: before anything leaves the machine
 
 - betterleaks in the pre-commit hook, on staged changes. That's the required layer; no CI
   scan job (by the time CI runs, a pushed secret is already out).
@@ -74,6 +74,14 @@ The baseline applies to every stack. A stack file adds to it; where it deviates,
   -q .security_and_analysis`); on by default for public repos, paid for private ones.
 - If build output trips rules, add a `.betterleaks.toml` that extends the defaults and
   allowlists the output dir.
+- Local secrets (API credentials) go in a gitignored `.env`: put `.env`, `.env.*` and
+  `!.env.example` in `.gitignore` before anything else is created, commit a `.env.example`
+  listing every variable without values, and `set dotenv-load` in the justfile so recipes see
+  it. Deployed containers get real env vars.
+- Public repos: no real identifiers of real people (player or character names, guild names,
+  account ids, emails) in fixtures, tests, docs, logs or commit messages; betterleaks won't
+  catch them. Fixtures use made-up data shaped like real responses. Say so in the project's
+  `AGENTS.md`.
 
 ### Commits
 
@@ -91,8 +99,25 @@ The baseline applies to every stack. A stack file adds to it; where it deviates,
   a parameter so tests use a fake (temp dir tree, in-process fake server). For CLIs, a hidden
   global flag that only tests set is fine.
 - Tests that need the network are tagged, excluded from `just test`, and have their own recipe.
+  Real identifiers they need come from env vars (`<NAME>_TEST_<THING>`, via `.env`), never
+  from the code.
 - Property-based tests where there is real input space (parsing, ordering, round-trips, path
-  handling).
+  handling). When a generator can produce input the validator rightly rejects, skip it in that
+  property (`let Ok(x) = parse(&s) else { return Ok(()) };`) instead of narrowing the
+  generator until it tests nothing. Anything that normalises user input gets an idempotence
+  property (`normalise(display(x)) == x`); it finds real bugs.
+
+### External APIs
+
+When the app talks to an undocumented or thinly documented API:
+
+- Write `docs/<api>.md` before the client: each fact with its source (official doc, community
+  post, our own request and its date), a table of what we verified with our client, and what
+  the app uses. New facts go there, with their source.
+- A read-only `<name> api <path>` debug subcommand (plus `just api <path>`) that prints any
+  response using the app's credentials, for exploring and re-verifying.
+- Tests run against an in-process fake serving fixture JSON; only the network tests hit the
+  real API.
 
 ### CI (GitHub Actions)
 
@@ -105,8 +130,13 @@ every checkout:
 - `actions-lock`: every `uses:` is pinned in `.github/workflows/actions.lock` via
   `gh actions-lock` (extension `github/gh-actions-lock`); CI runs `gh actions-lock --verify`.
   Commit the lockfile with every workflow change. Use full `vX.Y.Z` tags in `uses:`.
+  `gh actions-lock` warns about a pin newer than Dependabot's cooldown: pin the newest release
+  older than it (`gh release list -R <owner>/<repo> --json tagName,publishedAt`). Install the
+  extension pinned (`gh extension install github/gh-actions-lock --pin <ver>`), the same
+  version locally and in CI.
 - Install tools with `mise-action`, not language setup actions (stack files list exceptions).
-- Dependabot weekly for `github-actions` and the language ecosystem.
+- Dependabot weekly for `github-actions` and the language ecosystem, grouped, with a 7-day
+  `cooldown` (a new release settles, or gets pulled, before we take it).
 
 ### Versions and releases
 
@@ -131,8 +161,11 @@ every checkout:
   `CLAUDE.md` contains only `@AGENTS.md`. It says "run `just ci` before declaring work done".
 - `README.md` is for users. Contributor material goes in `docs/` (`development.md` for build,
   tests, hooks, CI and releases; `design.md` for internals).
-- Diagrams are Mermaid in Markdown, checked with `merman-cli lint` where present.
-- MIT license. `.gitignore`: build output, editor dirs, tool reports, local run artifacts.
+- Diagrams are Mermaid in Markdown, checked in `lint`/`ci`. `merman-cli lint` takes one file
+  and exits 1 on errors, so loop:
+  `for f in docs/*.md; do merman-cli lint "$f" >/dev/null || exit 1; done`.
+- MIT license. `.gitignore`: `.env`, build output, editor dirs, tool reports, local run
+  artifacts.
 
 ## Strong preferences
 
