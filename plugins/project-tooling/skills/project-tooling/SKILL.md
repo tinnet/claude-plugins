@@ -1,6 +1,6 @@
 ---
 name: project-tooling
-description: My preferred tooling and must-haves for software projects - mise for tools, just for tasks, lefthook git hooks, betterleaks secret scanning, Conventional Commits with signed commits, CalVer releases with git-cliff changelogs, pinned GitHub Actions - plus per-stack choices for Rust CLIs/daemons, Java native (GraalVM) CLIs, and small Rust web services. Use when scaffolding a new repo, adding CI/hooks/release automation, reviewing a repo's setup, or when asked to "set this up the way I like it".
+description: My preferred tooling and must-haves for software projects - mise for tools, just for tasks, lefthook git hooks, betterleaks secret scanning, Conventional Commits with signed commits, CalVer releases with git-cliff changelogs, pinned GitHub Actions - plus per-stack choices for Rust CLIs/daemons, Java native (GraalVM) CLIs, and small Rust web services (SQLite, htmx; optional S3 and Litestream). Use when scaffolding a new repo, adding CI/hooks/release automation, reviewing a repo's setup, or when asked to "set this up the way I like it".
 ---
 
 # Project tooling preferences
@@ -19,7 +19,7 @@ tool's own scaffolder where one exists.
 |--------------------------------------------------|---------------------------|
 | Rust command-line tool or daemon                 | `references/rust-cli.md`  |
 | Java command-line tool, compiled to native       | `references/java-cli.md`  |
-| Small Rust web service (SQLite, S3, htmx)        | `references/rust-web.md`  |
+| Small Rust web service (SQLite, htmx)            | `references/rust-web.md`  |
 | Anything else                                    | Apply the baseline and ask about stack choices |
 
 The baseline applies to every stack. A stack file adds to it; where it deviates, it says so.
